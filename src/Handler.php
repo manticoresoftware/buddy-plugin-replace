@@ -56,21 +56,34 @@ final class Handler extends BaseHandlerWithClient
 		)->run();
 	}
 
+	/**
+	 * @param  Client  $manticoreClient
+	 * @param  string  $table
+	 * @return array <int, array<string, string>>
+	 * @throws ManticoreSearchClientError
+	 */
 	private static function getFields(Client $manticoreClient, string $table): array {
 		$descResult = $manticoreClient
 			->sendRequest('DESC '.$table)
 			->getResult();
 
-		return $descResult[0]['data'];
+		if (is_array($descResult[0])) {
+			return $descResult[0]['data'];
+		}
+
+		return [];
 	}
 
+
+	/**
+	 * @param  array<int, array<string, string>>  $fields
+	 * @return void
+	 * @throws \Manticoresearch\Buddy\Core\Error\GenericError
+	 */
 	private static function checkStoredFields(array $fields): void {
 		foreach ($fields as $field) {
-			if ($field['Type'] !== 'text') {
-				continue;
-			}
-
-			if (strpos($field['Properties'], 'stored') !== false) {
+			if ($field['Type'] !== 'text'
+				|| str_contains($field['Properties'], 'stored')) {
 				continue;
 			}
 
@@ -84,7 +97,8 @@ final class Handler extends BaseHandlerWithClient
 	/**
 	 * @param  Client  $manticoreClient
 	 * @param  Payload  $payload
-	 * @return array<string, string>
+	 * @param  array<int, array<string, string>>  $fields
+	 * @return array<string, string|int>
 	 * @throws ManticoreSearchClientError
 	 */
 	private static function getRecordValues(Client $manticoreClient, Payload $payload, array $fields): array {
@@ -94,9 +108,7 @@ final class Handler extends BaseHandlerWithClient
 			->sendRequest($sql)
 			->getResult();
 
-
 		$mvaFields = [];
-
 
 		foreach ($fields as $key) {
 			if ($key['Type'] !== 'mva') {
@@ -108,6 +120,7 @@ final class Handler extends BaseHandlerWithClient
 
 		if (is_array($records) && !empty($records[0]['data'][0])) {
 			// We need migrate MVA values to correct syntax for replace call
+			// Todo check json MVA
 			if ($mvaFields !== []) {
 				foreach ($mvaFields as $field) {
 					$records[0]['data'][0][$field] = '('.$records[0]['data'][0][$field].')';
@@ -123,7 +136,7 @@ final class Handler extends BaseHandlerWithClient
 
 	/**
 	 * @param  string  $tableName
-	 * @param  array<string, string|array>  $set
+	 * @param  array<string, string|int|array<string>> $set
 	 * @return string
 	 */
 	private static function buildQuery(string $tableName, array $set): string {
@@ -134,7 +147,7 @@ final class Handler extends BaseHandlerWithClient
 
 			if (is_numeric($value)) {
 				$values[] = $value;
-			} elseif (isset($value[0]) && $value[0] === '(') {
+			} elseif (isset($value[0]) && is_string($value) && $value[0] === '(') {
 				$values[] = $value;
 			} elseif (is_array($value)) {
 				$values[] = '('.implode(',', $value).')';
