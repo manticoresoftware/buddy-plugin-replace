@@ -120,7 +120,6 @@ final class Handler extends BaseHandlerWithClient
 
 		if (is_array($records) && !empty($records[0]['data'][0])) {
 			// We need migrate MVA values to correct syntax for replace call
-			// Todo check json MVA
 			if ($mvaFields !== []) {
 				foreach ($mvaFields as $field) {
 					$records[0]['data'][0][$field] = '('.$records[0]['data'][0][$field].')';
